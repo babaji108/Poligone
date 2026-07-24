@@ -7,6 +7,7 @@ from eth_account import Account
 import os
 from flask import Flask
 import sys
+import threading
 
 # ========== CONFIG ==========
 ALCHEMY_API_KEY = "alch_gCLi_mioaMeioXm0yWmWT"
@@ -33,7 +34,7 @@ CONTRACT_ABI = [
 # ========== WEB3 ==========
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
 if not w3.is_connected():
-    print("Web3 connection failed")
+    print("Web3 connection failed", flush=True)
     sys.exit(1)
 
 account = Account.from_key(PRIVATE_KEY)
@@ -65,7 +66,7 @@ def get_amount_out(amount_in, reserve_in, reserve_out):
 # ========== TRADE EXECUTION ==========
 def execute_trade(amount_usdc):
     try:
-        print(f"  Sending trade ({amount_usdc} USDC)...")
+        print(f"  Sending trade ({amount_usdc} USDC)...", flush=True)
         func_sig = "0xb8845e44"
         amount_hex = format(amount_usdc, '064x')
         call_data = func_sig + amount_hex
@@ -80,10 +81,10 @@ def execute_trade(amount_usdc):
         }
         signed_tx = account.sign_transaction(tx)
         tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        print(f"  Trade sent! Tx Hash: {tx_hash.hex()}")
+        print(f"  Trade sent! Tx Hash: {tx_hash.hex()}", flush=True)
         return True
     except Exception as e:
-        print(f"  Trade failed: {e}")
+        print(f"  Trade failed: {e}", flush=True)
         return False
 
 # ========== FLASK ==========
@@ -102,24 +103,25 @@ total_checks = 0
 profitable_checks = 0
 
 if __name__ == "__main__":
-    print("Trading Bot Started - WETH/USDC")
-    print("0 = No trade, 1 = Trade executed")
-    print("=" * 50)
-    print(f"Contract: {CONTRACT_ADDRESS}")
-    print("=" * 50)
+    print("Trading Bot Started - WETH/USDC", flush=True)
+    print("0 = No trade, 1 = Trade executed", flush=True)
+    print("=" * 50, flush=True)
+    print(f"Contract: {CONTRACT_ADDRESS}", flush=True)
+    print("=" * 50, flush=True)
 
     amount_in = 10**16
 
     # Flask को एक अलग थ्रेड में शुरू करें
-    import threading
     def run_flask():
         app.run(host='0.0.0.0', port=10000)
     threading.Thread(target=run_flask, daemon=True).start()
 
-    # मुख्य लूप
+    # मुख्य लूप – हर 30 सेकंड में एक "heartbeat" भी प्रिंट करेगा
     while True:
         try:
             total_checks += 1
+            print(f"Loop iteration {total_checks} - fetching reserves...", flush=True)
+
             r0_qs, r1_qs = get_reserves(PAIR_QS)
             r0_ss, r1_ss = get_reserves(PAIR_SS)
 
@@ -138,24 +140,24 @@ if __name__ == "__main__":
                 matic_price = 0.0004
                 gas_cost_usdc = gas_cost_matic * matic_price
 
-                print(f"\nCheck #{total_checks}: QS={qs_usdc:.4f}, SS={ss_usdc:.4f}, Diff={diff_percent:.3f}%")
+                print(f"\nCheck #{total_checks}: QS={qs_usdc:.4f}, SS={ss_usdc:.4f}, Diff={diff_percent:.3f}%", flush=True)
 
                 if diff_percent > 0.3 and diff > gas_cost_usdc:
                     profitable_checks += 1
                     profit_usdc = diff - gas_cost_usdc
-                    print(f"  PROFIT! 1 ({profitable_checks}/{total_checks} = {profitable_checks/total_checks*100:.2f}%)")
-                    print(f"  Profit: ${profit_usdc:.4f}")
+                    print(f"  PROFIT! 1 ({profitable_checks}/{total_checks} = {profitable_checks/total_checks*100:.2f}%)", flush=True)
+                    print(f"  Profit: ${profit_usdc:.4f}", flush=True)
                     execute_trade(int(100 * 10**6))
                 else:
-                    print(f"  0 ({profitable_checks}/{total_checks} = {profitable_checks/total_checks*100:.2f}%)")
+                    print(f"  0 ({profitable_checks}/{total_checks} = {profitable_checks/total_checks*100:.2f}%)", flush=True)
             else:
-                print("  Reserves not found")
+                print("  Reserves not found", flush=True)
 
             time.sleep(30)
 
         except KeyboardInterrupt:
-            print(f"\nStopped. Final: {profitable_checks}/{total_checks} = {profitable_checks/total_checks*100:.2f}%")
+            print(f"\nStopped. Final: {profitable_checks}/{total_checks} = {profitable_checks/total_checks*100:.2f}%", flush=True)
             break
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error: {e}", flush=True)
             time.sleep(10)
