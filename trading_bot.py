@@ -7,12 +7,15 @@ from eth_account import Account
 import os
 from flask import Flask
 import threading
+import sys
 
 # ========== CONFIG ==========
 ALCHEMY_API_KEY = "alch_gCLi_mioaMeioXm0yWmWT"
-PRIVATE_KEY = os.getenv("PRIVATE_KEY", "0xYOUR_PRIVATE_KEY")
-CONTRACT_ADDRESS = "0xb97e10Ddfa337883f88804CabF18135FA5CBc937"
+PRIVATE_KEY = os.getenv("PRIVATE_KEY")
+if not PRIVATE_KEY or PRIVATE_KEY == "0xYOUR_PRIVATE_KEY":
+    raise ValueError("PRIVATE_KEY environment variable is not set or is invalid!")
 
+CONTRACT_ADDRESS = "0xb97e10Ddfa337883f88804CabF18135FA5CBc937"
 RPC_URL = f"https://polygon-mainnet.g.alchemy.com/v2/{ALCHEMY_API_KEY}"
 
 # ========== ADDRESSES ==========
@@ -32,7 +35,7 @@ CONTRACT_ABI = [
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
 if not w3.is_connected():
     print("Web3 connection failed")
-    exit(1)
+    sys.exit(1)
 
 account = Account.from_key(PRIVATE_KEY)
 contract = w3.eth.contract(address=CONTRACT_ADDRESS, abi=CONTRACT_ABI)
@@ -84,18 +87,19 @@ def execute_trade(amount_usdc):
         print(f"  Trade failed: {e}")
         return False
 
-# ========== FLASK SERVER (for Render) ==========
+# ========== FLASK SERVER (in separate thread) ==========
 app = Flask(__name__)
 
 @app.route('/')
 def home():
     return "Bot is running!"
 
+@app.route('/status')
+def status():
+    return f"Total checks: {total_checks}, Profitable trades: {profitable_checks}"
+
 def run_web():
     app.run(host='0.0.0.0', port=10000)
-
-# Start Flask in background
-threading.Thread(target=run_web, daemon=True).start()
 
 # ========== MAIN BOT LOOP ==========
 total_checks = 0
@@ -155,4 +159,10 @@ def main():
             time.sleep(10)
 
 if __name__ == "__main__":
+    # Start Flask in background thread
+    web_thread = threading.Thread(target=run_web, daemon=True)
+    web_thread.start()
+    # Give Flask a moment to start
+    time.sleep(1)
+    # Run main bot loop
     main()
