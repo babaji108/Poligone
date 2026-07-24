@@ -6,7 +6,6 @@ from web3 import Web3
 from eth_account import Account
 import os
 from flask import Flask
-import threading
 import sys
 
 # ========== CONFIG ==========
@@ -87,7 +86,7 @@ def execute_trade(amount_usdc):
         print(f"  Trade failed: {e}")
         return False
 
-# ========== FLASK SERVER (in separate thread) ==========
+# ========== FLASK ==========
 app = Flask(__name__)
 
 @app.route('/')
@@ -98,15 +97,11 @@ def home():
 def status():
     return f"Total checks: {total_checks}, Profitable trades: {profitable_checks}"
 
-def run_web():
-    app.run(host='0.0.0.0', port=10000)
-
-# ========== MAIN BOT LOOP ==========
+# ========== MAIN ==========
 total_checks = 0
 profitable_checks = 0
 
-def main():
-    global total_checks, profitable_checks
+if __name__ == "__main__":
     print("Trading Bot Started - WETH/USDC")
     print("0 = No trade, 1 = Trade executed")
     print("=" * 50)
@@ -115,6 +110,13 @@ def main():
 
     amount_in = 10**16
 
+    # Flask को एक अलग थ्रेड में शुरू करें
+    import threading
+    def run_flask():
+        app.run(host='0.0.0.0', port=10000)
+    threading.Thread(target=run_flask, daemon=True).start()
+
+    # मुख्य लूप
     while True:
         try:
             total_checks += 1
@@ -157,12 +159,3 @@ def main():
         except Exception as e:
             print(f"Error: {e}")
             time.sleep(10)
-
-if __name__ == "__main__":
-    # Start Flask in background thread
-    web_thread = threading.Thread(target=run_web, daemon=True)
-    web_thread.start()
-    # Give Flask a moment to start
-    time.sleep(1)
-    # Run main bot loop
-    main()
