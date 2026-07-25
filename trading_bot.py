@@ -68,25 +68,19 @@ def execute_trade(amount_usdc):
     try:
         print(f"  Sending trade ({amount_usdc} USDC)...", flush=True)
         
-        # startFlashLoan(uint256) का call data
         func_sig = "0xb8845e44"
         amount_hex = format(amount_usdc, '064x')
         call_data = func_sig + amount_hex
         
-        # Nonce
         nonce = w3.eth.get_transaction_count(account.address)
-        
-        # Transaction build
         tx = {
             'to': CONTRACT_ADDRESS,
             'data': call_data,
             'gas': 500000,
             'gasPrice': w3.eth.gas_price,
             'nonce': nonce,
-            'chainId': 137  # Polygon Mainnet
+            'chainId': 137
         }
-        
-        # Sign and send
         signed_tx = account.sign_transaction(tx)
         tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
         print(f"  Trade sent! Tx Hash: {tx_hash.hex()}", flush=True)
@@ -117,19 +111,16 @@ if __name__ == "__main__":
     print(f"Contract: {CONTRACT_ADDRESS}", flush=True)
     print("=" * 50, flush=True)
 
-    amount_in = 10**16  # 0.01 WETH
+    amount_in = 10**16
 
-    # Flask को अलग थ्रेड में शुरू करें
     def run_flask():
         app.run(host='0.0.0.0', port=10000)
     threading.Thread(target=run_flask, daemon=True).start()
 
-    # मुख्य लूप
     while True:
         try:
             total_checks += 1
 
-            # Reserve लें
             r0_qs, r1_qs = get_reserves(PAIR_QS)
             r0_ss, r1_ss = get_reserves(PAIR_SS)
 
@@ -142,7 +133,6 @@ if __name__ == "__main__":
                 avg = (qs_usdc + ss_usdc) / 2
                 diff_percent = (diff / avg) * 100 if avg > 0 else 0
 
-                # Gas estimate
                 gas_price = rpc_call("eth_gasPrice", [])
                 gas_price_num = int(gas_price.get("result", "0x0"), 16)
                 gas_cost_matic = (gas_price_num * 300000) / 1e18
@@ -151,13 +141,12 @@ if __name__ == "__main__":
 
                 print(f"\nCheck #{total_checks}: QS={qs_usdc:.4f}, SS={ss_usdc:.4f}, Diff={diff_percent:.3f}%", flush=True)
 
-                # अगर Diff 0.15% से ज्यादा है और गैस से ज्यादा मुनाफा है – तो ट्रेड करें
-                if diff_percent > 0.15 and diff > gas_cost_usdc:
+                # ✅ THRESHOLD SET TO 0.06% (AS REQUESTED)
+                if diff_percent > 0.06 and diff > gas_cost_usdc:
                     profitable_checks += 1
                     profit_usdc = diff - gas_cost_usdc
                     print(f"  PROFIT! 1 ({profitable_checks}/{total_checks} = {profitable_checks/total_checks*100:.2f}%)", flush=True)
                     print(f"  Profit: ${profit_usdc:.4f}", flush=True)
-                    # 🚀 ट्रेड भेजें – 100 USDC का फ्लैश लोन
                     execute_trade(int(100 * 10**6))
                 else:
                     print(f"  0 ({profitable_checks}/{total_checks} = {profitable_checks/total_checks*100:.2f}%)", flush=True)
