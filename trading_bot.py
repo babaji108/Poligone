@@ -63,7 +63,7 @@ def get_amount_out(amount_in, reserve_in, reserve_out):
     denominator = reserve_in * 1000 + amount_in * 997
     return numerator // denominator
 
-# ========== TRADE EXECUTION (DIRECT - NO GAS MANAGER) ==========
+# ========== TRADE EXECUTION (FIXED) ==========
 def execute_trade(amount_usdc):
     try:
         print(f"  Sending trade ({amount_usdc} USDC)...", flush=True)
@@ -82,7 +82,16 @@ def execute_trade(amount_usdc):
             'chainId': 137
         }
         signed_tx = account.sign_transaction(tx)
-        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        
+        # ========== FIX: Use raw_transaction (with underscore) ==========
+        # This works with both web3.py v5 and v6
+        try:
+            # web3.py v6+
+            tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+        except AttributeError:
+            # web3.py v5 (fallback)
+            tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        
         print(f"  Trade sent! Tx Hash: {tx_hash.hex()}", flush=True)
         return True
     except Exception as e:
@@ -141,12 +150,13 @@ if __name__ == "__main__":
 
                 print(f"\nCheck #{total_checks}: QS={qs_usdc:.4f}, SS={ss_usdc:.4f}, Diff={diff_percent:.3f}%", flush=True)
 
-                # ✅ THRESHOLD SET TO 0.06% (AS REQUESTED)
+                # Threshold: 0.06% (6%)
                 if diff_percent > 0.06 and diff > gas_cost_usdc:
                     profitable_checks += 1
                     profit_usdc = diff - gas_cost_usdc
                     print(f"  PROFIT! 1 ({profitable_checks}/{total_checks} = {profitable_checks/total_checks*100:.2f}%)", flush=True)
                     print(f"  Profit: ${profit_usdc:.4f}", flush=True)
+                    # Change amount to 100 USDC (100 * 10^6)
                     execute_trade(int(100 * 10**6))
                 else:
                     print(f"  0 ({profitable_checks}/{total_checks} = {profitable_checks/total_checks*100:.2f}%)", flush=True)
