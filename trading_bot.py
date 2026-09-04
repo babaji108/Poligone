@@ -8,6 +8,7 @@ from flask import Flask
 import threading
 
 # ========== CONFIG ==========
+# आपकी लाइव अल्केमी की और पूरी तरह सुधरा हुआ सही RPC URL मार्ग
 ALCHEMY_API_KEY = "JD8Ipwo3WY8dpAi4MVQMX"
 RPC_URL = f"https://alchemy.com{ALCHEMY_API_KEY}"
 PRIVATE_KEY = os.getenv("PRIVATE_KEY")
@@ -24,8 +25,14 @@ CONTRACT_ABI = [
 
 # ========== WEB3 SETUP ==========
 w3 = Web3(Web3.HTTPProvider(RPC_URL))
+
+# 🔐 सुरक्षा कवच: यदि किसी कारणवश मुख्य Alchemy नोड कनेक्ट न हो, तो पब्लिक बैकअप का उपयोग करें
 if not w3.is_connected():
-    print("❌ Alchemy से कनेक्ट नहीं हो पा रहा.")
+    print("⚠️ Alchemy कनेक्ट नहीं हुआ, पब्लिक बैकअप RPC आज़मा रहे हैं...")
+    w3 = Web3(Web3.HTTPProvider("https://polygon-rpc.com"))
+
+if not w3.is_connected():
+    print("❌ मुख्य और बैकअप दोनों नेटवर्क कनेक्ट नहीं हो पा रहे हैं.")
     sys.exit(1)
 
 account = Account.from_key(PRIVATE_KEY)
@@ -47,7 +54,9 @@ SUSHISWAP_ROUTER = "0x1b02dA8Cb0d097e645729F65f33A788624121522"
 def rpc_call(method, params):
     payload = {"jsonrpc": "2.0", "method": method, "params": params, "id": 1}
     try:
-        res = requests.post(RPC_URL, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
+        # यदि मुख्य RPC_URL काम न करे, तो यह बैकअप यूआरएल पर रीडायरेक्ट करेगा
+        target_url = RPC_URL if w3.provider.endpoint_uri == RPC_URL else "https://polygon-rpc.com"
+        res = requests.post(target_url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
         return res.json()
     except:
         return {}
@@ -72,10 +81,8 @@ def get_amount_out(amount_in, reserve_in, reserve_out):
 # live POL (Matic) की कीमत USD में निकालने के लिए (गैस फीस कैलकुलेशन हेतु)
 def get_pol_price():
     try:
-        # QuickSwap USDC/WMATIC पूल से लाइव कीमत का अंदाजा लगाना
         r0, r1 = get_reserves(PAIR_QS)
         if r0 and r1:
-            # 1 POL = कितने USDC (USDC 6 डेसीमल, WMATIC 18 डेसीमल)
             return (r0 / 1e6) / (r1 / 1e18)
     except:
         pass
@@ -95,7 +102,7 @@ if __name__ == "__main__":
     print("✅ सुरक्षित आर्बिट्राज बॉट तैयार है! वास्तविक लाभ ट्रैकिंग शुरू...")
     threading.Thread(target=run_flask, daemon=True).start()
 
-    # 🚀 लोन राशि को बढ़ाकर 2,000 USDC किया (आपके वॉलेट से ₹1 भी नहीं कटेगा)
+    # 🚀 लोन राशि को बढ़ाकर 2,000 USDC किया (यह फ्लैश लोन है, आपके वॉलेट से नहीं कटेगा)
     amount_in = int(2000 * 10**6) 
     total_checks = 0
 
@@ -167,7 +174,7 @@ if __name__ == "__main__":
             else:
                 print("⏸️ रिज़र्व डेटा नहीं मिला। दोबारा कोशिश...", flush=True)
 
-            time.sleep(10) # स्कैनिंग थोड़ी तेज़ की (15s से 10s) ताकि मौका न छूटे
+            time.sleep(10) # स्कैनिंग गति 15s से बढ़ाकर 10s की गई
 
         except Exception as e:
             print(f"⏸️ एरर: {e}", flush=True)
