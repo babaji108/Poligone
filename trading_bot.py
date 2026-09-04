@@ -15,18 +15,20 @@ if not PRIVATE_KEY:
     sys.exit(1)
 
 CONTRACT_ADDRESS = "0xBd6FB986340404B8068Fd14F70662366E3c87999"
+
+# सटीक ABI कॉन्फ़िगरेशन
 CONTRACT_ABI = [
     {"inputs": [{"internalType": "address", "name": "tokenIn", "type": "address"}, {"internalType": "uint256", "name": "amount", "type": "uint256"}, {"internalType": "address", "name": "swapRouter", "type": "address"}, {"internalType": "address", "name": "tokenOut", "type": "address"}, {"internalType": "uint256", "name": "minOutAmount", "type": "uint256"}], "name": "startFlashLoan", "outputs": [], "stateMutability": "nonpayable", "type": "function"},
     {"inputs": [{"internalType": "address", "name": "token", "type": "address"}], "name": "withdraw", "outputs": [], "stateMutability": "nonpayable", "type": "function"}
 ]
 
-# मोबाइल/ब्राउज़र हेडर ताकि कनेक्शन अनब्लॉक रहे
+# मोबाइल अनुकूलित नेटवर्क हेडर
 HTTP_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
     "Content-Type": "application/json"
 }
 
-# 🚀 अनब्लॉकेबल हाई-स्पीड पब्लिक नोड्स (अल्केमी की रेट-लिमिट एरर से बचने के लिए)
+# पॉलीगॉन नेटवर्क के 4 सबसे शक्तिशाली और अनब्लॉकेबल सार्वजनिक रास्ते
 RPC_ENDPOINTS = [
     "https://polygon-rpc.com",
     "https://llamarpc.com",
@@ -37,7 +39,7 @@ RPC_ENDPOINTS = [
 w3 = None
 ACTIVE_RPC = None
 
-# सबसे बेस्ट एक्टिव नेटवर्क चुनना
+# सबसे तेज़ और चालू ब्लॉकचेन नेटवर्क का चयन
 for endpoint in RPC_ENDPOINTS:
     try:
         provider = Web3.HTTPProvider(endpoint, request_kwargs={"headers": HTTP_HEADERS, "timeout": 15})
@@ -45,7 +47,7 @@ for endpoint in RPC_ENDPOINTS:
         if temp_w3.is_connected():
             w3 = temp_w3
             ACTIVE_RPC = endpoint
-            print(f"✅ सफलतापूर्वक कनेक्टेड: {ACTIVE_RPC}")
+            print(f"✅ कनेक्टेड नेटवर्क: {ACTIVE_RPC}")
             break
     except:
         continue
@@ -57,7 +59,7 @@ if w3 is None:
 account = Account.from_key(PRIVATE_KEY)
 contract = w3.eth.contract(address=CONTRACT_ADDRESS, abi=CONTRACT_ABI)
 
-# पेयर्स और राउटर्स के सटीक पते
+# पेयर्स और राउटर्स के ऑन-चेन एड्रेस
 PAIR_QS = "0x853ee4b2a13f8a742d64c8f088be7ba2131f670d"
 PAIR_SS = "0x34965ba0ac2451a34a0471f04cca3f990b8dea27"
 USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
@@ -71,7 +73,6 @@ def rpc_call(method, params):
         res = requests.post(ACTIVE_RPC, json=payload, headers=HTTP_HEADERS, timeout=10)
         return res.json()
     except:
-        # यदि कोई लाइव नोड फेल हो, तो तुरंत दूसरे पर स्विच करें
         for endpoint in RPC_ENDPOINTS:
             try:
                 res = requests.post(endpoint, json=payload, headers=HTTP_HEADERS, timeout=10)
@@ -81,6 +82,7 @@ def rpc_call(method, params):
         return {}
 
 def get_reserves(pair):
+    # Uniswap V2 getReserves() का ऑन-चेन डेटा सिग्नेचर
     data = "0x0902f1ac"
     result = rpc_call("eth_call", [{"to": pair, "data": data}, "latest"])
     if "result" in result and len(result["result"]) >= 192:
@@ -105,7 +107,7 @@ def get_pol_price():
         pass
     return 0.45
 
-# ========== FLASK APPLICATION ==========
+# ========== FLASK WEB SERVICE ==========
 app = Flask(__name__)
 
 @app.route('/')
@@ -113,10 +115,10 @@ app = Flask(__name__)
 def home():
     return "OK", 200
 
-# ========== BACKGROUND SCANNING LOOP ==========
+# ========== BLOCKCHAIN ARBITRAGE SCANNER ==========
 def arbitrage_scanner():
-    print("🚀 बैकग्राउंड आर्बिट्राज स्कैनर सफलतापूर्वक शुरू हो गया है...")
-    amount_in = int(2000 * 10**6) # $2000 का सुरक्षित फ्लैश लोन अमाउंट
+    print("🚀 बैकग्राउंड आर्बिट्राज स्कैनर पूरी तरह सक्रिय हो गया है...")
+    amount_in = int(2000 * 10**6) # $2000 का सुरक्षित और रियल फ्लैश लोन अमाउंट
     total_checks = 0
 
     while True:
@@ -126,19 +128,19 @@ def arbitrage_scanner():
             r0_ss, r1_ss = get_reserves(PAIR_SS)
 
             if r0_qs and r1_qs and r0_ss and r1_ss:
-                # पाथ 1: QuickSwap -> SushiSwap
+                # पाथ 1 की गणना: QuickSwap -> SushiSwap
                 wmatic_received_qs = get_amount_out(amount_in, r0_qs, r1_qs)
                 usdc_returned_ss = get_amount_out(wmatic_received_qs, r1_ss, r0_ss)
                 profit_path1 = (usdc_returned_ss - amount_in) / 1e6
 
-                # पाथ 2: SushiSwap -> QuickSwap
+                # पाथ 2 की गणना: SushiSwap -> QuickSwap
                 wmatic_received_ss = get_amount_out(amount_in, r0_ss, r1_ss)
                 usdc_returned_qs = get_amount_out(wmatic_received_ss, r1_qs, r0_qs)
                 profit_path2 = (usdc_returned_qs - amount_in) / 1e6
 
                 best_profit = max(profit_path1, profit_path2)
                 
-                # वास्तविक खर्चों की लाइव गणना
+                # लाइव गैस और खर्चे का नकद हिसाब (USD में)
                 gas_price = w3.eth.gas_price
                 estimated_gas_used = 250000  
                 gas_cost_in_pol = (gas_price * estimated_gas_used) / 1e18
@@ -147,13 +149,15 @@ def arbitrage_scanner():
                 
                 flash_loan_fee_usd = (amount_in / 1e6) * 0.0005
                 total_expenses = gas_cost_in_usd + flash_loan_fee_usd
+                
+                # वास्तविक शुद्ध मुनाफा (Net Profit)
                 net_profit = best_profit - total_expenses
 
                 print(f"📊 चेक #{total_checks}: सम्भावित प्रॉफिट=${best_profit:.4f}, खर्चा=${total_expenses:.4f}, शुद्ध लाभ=${net_profit:.4f}", flush=True)
 
-                # सुरक्षा कवच ट्रिगर: केवल $0.50 के पक्के मुनाफे पर ही ब्लॉकचेन पर जाना
+                # गैस सुरक्षा कवच: केवल तभी ट्रेड मारो जब $0.50 का वास्तविक लाभ जेब में आए
                 if net_profit > 0.50:
-                    print(f"🔥 तगड़ा मौका! शुद्ध लाभ: ${net_profit:.2f}. ट्रेड ट्रिगर हो रही है...", flush=True)
+                    print(f"🔥 आर्बिट्राज अवसर मिला! शुद्ध लाभ: ${net_profit:.2f}. ट्रांजैक्शन सेंड हो रही है...", flush=True)
                     target_router = QUICKSWAP_ROUTER if profit_path1 > profit_path2 else SUSHISWAP_ROUTER
                     
                     tx = contract.functions.startFlashLoan(
@@ -171,27 +175,29 @@ def arbitrage_scanner():
                     
                     signed_tx = account.sign_transaction(tx)
                     tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-                    print(f"✅ ट्रेड सफलतापूर्वक निष्पादित! हैश: {tx_hash.hex()}", flush=True)
+                    print(f"✅ ट्रेड सक्सेसफुल! ट्रांजैक्शन हैश: {tx_hash.hex()}", flush=True)
                     sys.exit(0)
                 else:
                     if net_profit < 0:
-                        print(f"⏳ बाज़ार संतुलित है (नेट लाभ: ${net_profit:.4f})। कोई गैस खर्च नहीं।", flush=True)
+                        print(f"⏳ मार्केट रेट संतुलित है (नेट लाभ: ${net_profit:.4f})। कोई गैस फीस खर्च नहीं की गई।", flush=True)
                     else:
-                        print(f"⏳ बहुत कम लाभ (${net_profit:.4f})। अवसर की प्रतीक्षा में...", flush=True)
+                        print(f"⏳ लाभ बहुत कम है (${net_profit:.4f})। सही अवसर का इंतज़ार...", flush=True)
             else:
-                print("⏸️ कुछ नोड्स व्यस्त हैं, डेटा पुनः प्राप्त करने का प्रयास...", flush=True)
+                print("⏸️ सार्वजनिक नेटवर्क व्यस्त है, डेटा पुनः प्राप्त करने का प्रयास...", flush=True)
 
             time.sleep(10)
 
         except Exception as e:
-            print(f"⏸️ स्कैनर रनटाइम नोटिस: {e}", flush=True)
+            print(f"⏸️ स्कैनर अस्थायी नोटिस: {e}", flush=True)
             time.sleep(10)
 
-# ========== START SYSTEM ==========
+# ========== MAIN EXE ==========
 if __name__ == "__main__":
+    # स्वतंत्र थ्रेड में बैकग्राउंड स्कैनर चालू करना
     scanner_thread = threading.Thread(target=arbitrage_scanner, daemon=True)
     scanner_thread.start()
 
+    # रेंडर के लिए मुख्य वेब सर्वर चालू करना
     port = int(os.environ.get("PORT", 10000))
-    print(f"🌐 वेब सर्वर सुरक्षित पोर्ट {port} पर सक्रिय हो रहा है...")
+    print(f"🌐 वेब सर्वर पोर्ट {port} पर सुरक्षित रूप से सक्रिय है...")
     app.run(host='0.0.0.0', port=port)
